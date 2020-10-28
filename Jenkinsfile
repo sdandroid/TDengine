@@ -9,7 +9,7 @@ pipeline {
       stage('Parallel test stage') {
       parallel {
         stage('pytest') {
-          agent{label 'master'}
+          agent{label '184'}
           steps {
             sh '''
             date
@@ -34,7 +34,7 @@ pipeline {
           }
         }
         stage('test_b1') {
-          agent{label '184'}
+          agent{label 'master'}
           steps {
             sh '''
             cd ${WKC}
@@ -79,7 +79,14 @@ pipeline {
             cmake .. > /dev/null
             make > /dev/null
             cd ${WKC}/tests/pytest
-            ./crash_gen.sh -a -p -t 4 -s 2000
+            '''
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/pytest
+                ./crash_gen.sh -a -p -t 4 -s 2000
+                '''
+            }
+            sh '''
             date
             cd ${WKC}/tests
             ./test-all.sh b2
@@ -118,6 +125,22 @@ pipeline {
             date'''
           }
         }
+       stage('connector'){
+         agent{label "release"}
+         steps{
+            sh'''
+            cd ${WORKSPACE}
+            git checkout develop
+            cd tests/gotest
+            bash batchtest.sh
+            cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
+            mvn clean package assembly:single >/dev/null 
+            java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
+            cd ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
+            python3 PythonChecker.py
+            '''
+         }
+       }
 
       }
     }
